@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.16;
 
-import {ERC721} from '@openzeppelin/contracts/token/ERC721/ERC721.sol';
+import {ERC721, IERC721} from '@openzeppelin/contracts/token/ERC721/ERC721.sol';
 import {ERC721Enumerable} from '@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol';
-import {Ownable} from '@openzeppelin/contracts/access/Ownable.sol";
+import {Ownable} from '@openzeppelin/contracts/access/Ownable.sol';
+
 import {IERC5192} from './interfaces/IERC5192.sol';
 
 /**
@@ -24,7 +25,7 @@ contract FloorSoulbound is ERC721, ERC721Enumerable, Ownable {
     event Unlocked(uint256 tokenId);
 
     /// Metadata base URI
-    string private baseURI;
+    string public baseURI;
 
     /// Mapping from token ID to locked status
     mapping(uint256 => bool) _locked;
@@ -95,8 +96,8 @@ contract FloorSoulbound is ERC721, ERC721Enumerable, Ownable {
         super.safeTransferFrom(from, to, tokenId);
     }
 
-    function _beforeTokenTransfer(address from, address to, uint256 tokenId) internal override(ERC721, ERC721Enumerable) {
-        super._beforeTokenTransfer(from, to, tokenId);
+    function _beforeTokenTransfer(address from, address to, uint256 firstTokenId, uint256 batchSize) internal override(ERC721, ERC721Enumerable) {
+        super._beforeTokenTransfer(from, to, firstTokenId, batchSize);
     }
 
     function supportsInterface(bytes4 _interfaceId) public view override(ERC721, ERC721Enumerable) returns (bool) {
