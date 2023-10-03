@@ -1,8 +1,8 @@
 {
-    "name": "Floor Soulbound",
-    "symbol": "FloorSoulbound",
-    "description": "",
-    "image": "https://nft.pudgypenguins.com/truePengu/truePengu-iridescent.gif",
+    "name": "True Sweeper",
+    "symbol": "SWEEPER",
+    "description": "Soulbound token granted to Sweepers that did not participate in the Floork proposal.",
+    "image": "ipfs://QmQEk5vx9NKQWzFhx6qUu9FrheXZPmAHudbWWnVYnaHLne",
     "animation_url": "ipfs://QmYsMuvgUmYYEX8ne7gaHCFi8jbDUtjTvQpCKFMvJczafL",
     "external_url": "https://floor.xyz",
     "attributes": [{
