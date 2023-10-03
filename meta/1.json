@@ -1,0 +1,15 @@
+{
+    "name": "Floor Soulbound",
+    "symbol": "FloorSoulbound",
+    "description": "",
+    "image": "https://nft.pudgypenguins.com/truePengu/truePengu-iridescent.gif",
+    "animation_url": "ipfs://QmUkgSLVd4ADyyS1fkKEa1582FYwmMJUCGMZjWZBDs8hjR",
+    "external_url": "https://floor.xyz",
+    "attributes": [{
+        "trait_type": "SWEEPER",
+        "value": true
+    }, {
+        "trait_type": "HOLDER",
+        "value": "GREEN"
+    }]
+}

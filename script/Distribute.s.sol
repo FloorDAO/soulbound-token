@@ -8,10 +8,10 @@ import {FloorSoulbound} from '../src/FloorSoulbound.sol';
 contract DistributeScript is Script {
 
     address[] recipients;
-    uint recipientsLength;
 
     FloorSoulbound floorSoulbound;
 
+    /*
     function setUp() public {
         // @dev This will raise an error if it cannot be read
         bytes memory recipientData = vm.parseJson(
@@ -19,8 +19,8 @@ contract DistributeScript is Script {
         );
 
         recipients = abi.decode(recipientData, (address[]));
-        recipientsLength = recipients.length;
     }
+    */
 
     function run() public {
         // Load our seed phrase from a protected file
@@ -31,13 +31,10 @@ contract DistributeScript is Script {
         vm.startBroadcast();
 
         // Deploy our contract
-        floorSoulbound = new FloorSoulbound('', '', '');
+        floorSoulbound = new FloorSoulbound('https://token.floor.xyz/', '.json');
 
         // Load our whitelist users
-        for (uint i; i < recipientsLength;) {
-            floorSoulbound.safeMint(recipients[i], i);
-            unchecked { ++i; }
-        }
+        // floorSoulbound.airdrop(1, recipients);
 
         // Stop collecting onchain transactions
         vm.stopBroadcast();

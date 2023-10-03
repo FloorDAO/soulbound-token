@@ -6,11 +6,18 @@ import {FloorSoulbound} from '../src/FloorSoulbound.sol';
 
 contract FloorSoulboundTest is Test {
 
+  /// Define our soulbound token contract
   FloorSoulbound sbt;
 
+  /// Set up some test users
   address alice;
   address bob;
   address carol;
+
+  /// Define our expected tiers
+  uint TIER_GOLD = 1;
+  uint TIER_SILVER = 2;
+  uint TIER_BRONZE = 3;
 
   function setUp() public {
     // Set up a small pool of test users
@@ -18,21 +25,52 @@ contract FloorSoulboundTest is Test {
     bob = payable(address(uint160(uint(2))));
     carol = payable(address(uint160(uint(3))));
 
-    sbt = new FloorSoulbound('Floor Soulbound Token', 'FloorSBT', 'https://base.uri/');
-    sbt.safeMint(alice, 0);
+    sbt = new FloorSoulbound('https://base.uri/', '.json');
   }
 
-  function test_CanGetSoulboundMetadata() public {
-    assertEq(sbt.name(), 'Floor Soulbound Token');
-    assertEq(sbt.symbol(), 'FloorSBT');
-    assertEq(sbt.baseURI(), 'https://base.uri/');
+  function test_CanGetTokenMetadata() public {
+    string memory uri = sbt.uri(TIER_GOLD);
+    assertEq(uri, 'https://base.uri/1.json');
+
+    uri = sbt.uri(TIER_SILVER);
+    assertEq(uri, 'https://base.uri/2.json');
   }
 
   function test_CanMintSingleSBT() public {
-    assertEq(sbt.balanceOf(alice), 1);
-    assertEq(sbt.balanceOf(bob), 0);
+    assertEq(sbt.balanceOf(alice, TIER_GOLD), 0);
+    assertEq(sbt.balanceOf(alice, TIER_SILVER), 0);
+    assertEq(sbt.balanceOf(alice, TIER_BRONZE), 0);
+    assertEq(sbt.balanceOf(bob, TIER_GOLD), 0);
 
-    assertEq(sbt.ownerOf(0), alice);
+    sbt.airdrop(TIER_GOLD, _singleRecipient(alice));
+
+    assertEq(sbt.balanceOf(alice, TIER_GOLD), 1);
+    assertEq(sbt.balanceOf(alice, TIER_SILVER), 0);
+    assertEq(sbt.balanceOf(alice, TIER_BRONZE), 0);
+    assertEq(sbt.balanceOf(bob, TIER_GOLD), 0);
+  }
+
+  function test_CanMintToMultipleRecipients() public {
+    address[] memory recipients = new address[](3);
+    recipients[0] = alice;
+    recipients[1] = bob;
+    recipients[2] = carol;
+
+    sbt.airdrop(TIER_GOLD, recipients);
+  }
+
+  function test_CannotMintSameTokenToSameUser() public {
+    sbt.airdrop(TIER_GOLD, _singleRecipient(alice));
+    assertEq(sbt.balanceOf(alice, TIER_GOLD), 1);
+
+    sbt.airdrop(TIER_GOLD, _singleRecipient(alice));
+    assertEq(sbt.balanceOf(alice, TIER_GOLD), 1);
+  }
+
+  function test_CanMintMultiplerTiersToSameUser() public {
+    sbt.airdrop(TIER_GOLD, _singleRecipient(alice));
+    sbt.airdrop(TIER_SILVER, _singleRecipient(alice));
+    sbt.airdrop(TIER_BRONZE, _singleRecipient(alice));
   }
 
   function test_CannotMintIfNotContractOwner(address minter) public {
@@ -40,89 +78,37 @@ contract FloorSoulboundTest is Test {
 
     vm.startPrank(minter);
     vm.expectRevert('Ownable: caller is not the owner');
-    sbt.safeMint(minter, 0);
+    sbt.airdrop(TIER_GOLD, _singleRecipient(alice));
     vm.stopPrank();
   }
-
-  function test_CannotMintTwiceToSameAddress(address recipient, uint tokenId) public {
-    vm.assume(tokenId > 1);
-    vm.assume(recipient != address(0));
-    vm.assume(recipient != alice);
-
-    sbt.safeMint(recipient, 1);
-
-    vm.expectRevert('MNT01');
-    sbt.safeMint(recipient, tokenId);
-  }
   
-  function test_CannotMintToZeroAddress(uint tokenId) public {
-    vm.expectRevert('ERC721: address zero is not a valid owner');
-    sbt.safeMint(address(0), tokenId);
-  }
-
-  function test_CannotMintSameTokenIdTwice(uint tokenId) public {
-    vm.assume(tokenId > 0);
-
-    sbt.safeMint(bob, tokenId);
-
-    vm.expectRevert('MNT02');
-    sbt.safeMint(carol, tokenId);
+  function test_CannotMintToZeroAddress() public {
+    vm.expectRevert('ERC1155: address zero is not a valid owner');
+    sbt.airdrop(TIER_GOLD, _singleRecipient(address(0)));
   }
 
   function test_CanBurnSoulboundToken() public {
+    sbt.airdrop(TIER_GOLD, _singleRecipient(alice));
+
     vm.prank(alice);
-    sbt.burn(0);
+    sbt.burn(TIER_GOLD);
 
-    assertEq(sbt.balanceOf(alice), 0);
-
-    vm.expectRevert('ERC721: invalid token ID');
-    sbt.ownerOf(0);
+    assertEq(sbt.balanceOf(alice, TIER_GOLD), 0);
   }
 
-  function test_CannotBurnSoulboundTokenThatIsNotOwned(uint tokenId) public {
-    vm.assume(tokenId > 0);
-
-    sbt.safeMint(bob, tokenId);
-    assertEq(sbt.balanceOf(bob), 1);
+  function test_CannotBurnSoulboundTokenThatIsNotOwned() public {
+    sbt.airdrop(TIER_SILVER, _singleRecipient(alice));
 
     vm.startPrank(alice);
-    vm.expectRevert('BRN01');
-    sbt.burn(tokenId);
+    vm.expectRevert('ERC1155: burn amount exceeds balance');
+    sbt.burn(TIER_GOLD);
     vm.stopPrank();
-
-    assertEq(sbt.balanceOf(bob), 1);
   }
 
-  function test_LockedStatusSetToTrueWhenMinted(uint tokenId) public {
-    vm.assume(tokenId > 0);
+  function _singleRecipient(address recipient) internal pure returns (address[] memory recipients_) {
+    recipients_ = new address[](1);
+    recipients_[0] = recipient;
 
-    sbt.safeMint(bob, tokenId);
-    assertTrue(sbt.locked(tokenId));
-  }
-
-  function test_CannotGetLockedStatusOfNonExistentToken(uint tokenId) public {
-    vm.assume(tokenId > 0);
-
-    vm.expectRevert('ERC721: invalid token ID');
-    sbt.locked(tokenId);
-  }
-
-  function invariant_CannotSafeTransferToken() public {
-    // Prevent the burn call from being made
-    excludeArtifact('burn');
-
-    // No matter what is run before, apart from a burn call, Alice always still
-    // owns the token.
-    assertEq(sbt.ownerOf(0), alice);
-  }
-
-  /**
-   * To aid recognition that an EIP-721 token implements "soulbinding" via this EIP
-   * upon calling EIP-721's `supportsInterface(bytes4 interfaceID) must return true.
-   */
-  function test_CanGetSupportsInterface() public {
-    bytes4 goodInterface = 0xb45a3c0e; // IERC5192
-    assertTrue(sbt.supportsInterface(goodInterface));
   }
 
 }

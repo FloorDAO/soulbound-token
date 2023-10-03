@@ -1,111 +1,83 @@
-// SPDX-License-Identifier: Apache-2.0
-pragma solidity ^0.8.16;
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.9;
 
-import {ERC721, IERC721} from '@openzeppelin/contracts/token/ERC721/ERC721.sol';
-import {ERC721Enumerable} from '@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol';
-import {Ownable} from '@openzeppelin/contracts/access/Ownable.sol';
+import '@openzeppelin/contracts/token/ERC1155/ERC1155.sol';
+import '@openzeppelin/contracts/access/Ownable.sol';
+import '@openzeppelin/contracts/utils/Strings.sol';
 
-import {IERC5192} from './interfaces/IERC5192.sol';
+error FunctionNotSupported();
 
 /**
  * Soulbound token (SBT) distributed to all holders that didn't rage quit.
- * 
- * @dev The implementation follows EIP-5192: Minimal Soulbound NFT.
  */
-contract FloorSoulbound is ERC721, ERC721Enumerable, Ownable {
-    /// @notice Emitted when the locking status is changed to locked.
-    /// @dev If a token is minted and the status is locked, this event should be emitted.
-    /// @param tokenId The identifier for a token.
-    event Locked(uint256 tokenId);
+contract FloorSoulbound is ERC1155, Ownable {
+    using Strings for uint;
 
-    /// @notice Emitted when the locking status is changed to unlocked.
-    /// @notice currently SBT Contract does not emit Unlocked event
-    /// @dev If a token is minted and the status is unlocked, this event should be emitted.
-    /// @param tokenId The identifier for a token.
-    event Unlocked(uint256 tokenId);
-
-    /// Metadata base URI
-    string public baseURI;
-
-    /// Mapping from token ID to locked status
-    mapping(uint256 => bool) _locked;
-
+    /// Token metadata
+    string private baseURI;
+    string private baseURISuffix;
+    
     /**
-     * Creates our ERC721 and defines the core metadata.
+     * Creates our base ERC1155 with metadata.
+     * 
+     * @dev As we override the `uri`, we don't need to pass this to {ERC1155}.
      */
-    constructor(string memory name_, string memory symbol_, string memory baseURI_) ERC721(name_, symbol_) {
-        baseURI = baseURI_;
+    constructor(string memory _base, string memory _suffix) ERC1155('') {
+        baseURI = _base; 
+        baseURISuffix = _suffix;
     }
 
     /**
-     * Reads the metadata base URI.
+     * Allows the metadata URI to be updated if asset paths require change.
      */
-    function _baseURI() internal view override returns (string memory) {
-        return baseURI;
+    function setURI(string calldata _base, string calldata _suffix) external onlyOwner {
+        baseURI = _base;
+        baseURISuffix = _suffix;
     }
 
     /**
-     * Returns the locking status of an Soulbound Token.
+     * Allows the contract owner to mint a soulbound token to a recipient.
      * 
-     * @dev SBTs assigned to zero address are considered invalid, and queries about
-     * them do throw.
-     * 
-     * @param tokenId The identifier for an SBT.
+     * @dev Ensures that the recipient does not currently own the token.
      */
-    function locked(uint256 tokenId) external view returns (bool) {
-        require(ownerOf(tokenId) != address(0));
-        return _locked[tokenId];
-    }
+    function airdrop(uint tier, address[] calldata holders) external onlyOwner {
+        for (uint i; i < holders.length;) {
+            if (balanceOf(holders[i], tier) == 0) {
+                _mint(holders[i], tier, 1, '');
+            }
 
-    /**
-     * Allows the contract owner to mint the soulbound token to a recipient.
-     * 
-     * @dev Ensures that the recipient does not currently own the token and that the ID
-     * of the token is not locked to prevent duplicated creation.
-     */
-    function safeMint(address to, uint256 tokenId) public onlyOwner {
-        require(balanceOf(to) == 0, "MNT01");
-        require(_locked[tokenId] != true, "MNT02");
-
-        _locked[tokenId] = true;
-        emit Locked(tokenId);
-
-        _safeMint(to, tokenId);
+            unchecked { ++i; }
+        }
     }
 
     /**
      * Allows the holder of the Soulbound token to burn.
      */
-    function burn(uint256 tokenId) public {
-        // Ensure that the caller owns the specified token ID
-        require(msg.sender == ownerOf(tokenId), "BRN01");
-
-        // Burn the token
-        _burn(tokenId);
+    function burn(uint tier) external {
+        _burn(msg.sender, tier, 1);
     }
 
-    function safeTransferFrom(address from, address to, uint256 tokenId) public virtual override(IERC721, ERC721) IsTransferAllowed(tokenId) {
-        super.safeTransferFrom(from, to, tokenId);
+    /**
+     * Determines the metadata URI based on the tier.
+     */
+    function uri(uint tier) public view override returns (string memory) {
+        return string(abi.encodePacked(baseURI, tier.toString(), baseURISuffix));
     }
 
-    function safeTransferFrom(address from, address to, uint256 tokenId, bytes memory data) public virtual override(IERC721, ERC721) IsTransferAllowed(tokenId) {
-        super.safeTransferFrom(from, to, tokenId, data);
+    /*
+     * All functions having to do with the transfer of the NFT's have been overridden.
+     * Although the approval functions don't need to be overridden, there is no use 
+     * for them, so I am overriding to save users gas in case they try and execute them.
+     */
+    function setApprovalForAll(address, bool) public pure override {
+        revert FunctionNotSupported();
     }
 
-    function transferFrom(address from, address to, uint256 tokenId) public virtual override(IERC721, ERC721) IsTransferAllowed(tokenId) {
-        super.safeTransferFrom(from, to, tokenId);
+    function safeTransferFrom(address, address, uint, uint, bytes memory) public pure override {
+        revert FunctionNotSupported();
     }
 
-    function _beforeTokenTransfer(address from, address to, uint256 firstTokenId, uint256 batchSize) internal override(ERC721, ERC721Enumerable) {
-        super._beforeTokenTransfer(from, to, firstTokenId, batchSize);
-    }
-
-    function supportsInterface(bytes4 _interfaceId) public view override(ERC721, ERC721Enumerable) returns (bool) {
-        return _interfaceId == type(IERC5192).interfaceId || super.supportsInterface(_interfaceId);
-    }
-
-    modifier IsTransferAllowed(uint256 tokenId) {
-        require(!_locked[tokenId]);
-        _;
+    function safeBatchTransferFrom(address, address, uint[] memory, uint[] memory, bytes memory) public pure override {
+        revert FunctionNotSupported();
     }
 }
